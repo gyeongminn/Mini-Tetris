@@ -6,18 +6,41 @@ import java.util.Iterator;
 
 public class GamePanel extends JPanel {
 
-    final int N_BLOCK = 10;
+    final int MAP_SIZE = 10; // 맵 칸 수
     final int BLOCK_SIZE = 50;
 
+    private TitlePanel titlePanel;
     private GameThread gameThread;
     private ArrayList<Block> blocks;
+    private JLabel gameOverLabel = new JLabel("GAME OVER");
+    private JLabel restartLabel = new JLabel("PRESS R TO RESTART");
+    private int level = 1;
 
-    public GamePanel() {
+    public GamePanel(TitlePanel titlePanel) {
         setLayout(null);
+        this.titlePanel = titlePanel;
+        setLevel(1);
+        initGame();
         startGame();
     }
 
-    private void startGame() {
+    private void initGame() {
+        gameOverLabel.setForeground(Color.RED);
+        gameOverLabel.setHorizontalAlignment(JLabel.CENTER);
+        gameOverLabel.setFont(new Font("Arial", Font.PLAIN, 100));
+        gameOverLabel.setBounds(100, 50, 800, 200);
+        add(gameOverLabel);
+
+        restartLabel.setHorizontalAlignment(JLabel.CENTER);
+        restartLabel.setFont(new Font("Arial", Font.PLAIN, 50));
+        restartLabel.setBounds(100, 150, 800, 200);
+        add(restartLabel);
+    }
+
+    public void startGame() {
+        setScore(0);
+        restartLabel.setVisible(false);
+        gameOverLabel.setVisible(false);
         blocks = new ArrayList<>(100);
         gameThread = new GameThread();
         gameThread.start();
@@ -30,18 +53,18 @@ public class GamePanel extends JPanel {
         // 블럭 모두 그리기
         for (Block block : blocks) {
             int x = block.getX() * BLOCK_SIZE + 250;
-            int y = block.getY() * BLOCK_SIZE + 50;
+            int y = block.getY() * BLOCK_SIZE + 1;
             g.setColor(block.getColor());
             g.fillRect(x, y, BLOCK_SIZE, BLOCK_SIZE);
         }
 
         // 배경 격자 그리기
         g.setColor(Color.BLACK);
-        for (int i = 0; i < 11; i++) {
-            int x = i * 50 + 250;
-            g.drawLine(x, 50, x, 550);
-            int y = i * 50 + 50;
-            g.drawLine(250, y, 750, y);
+        for (int i = 0; i < MAP_SIZE + 1; i++) {
+            int x = i * BLOCK_SIZE + 250;
+            g.drawLine(x, 1, x, BLOCK_SIZE * MAP_SIZE + 1);
+            int y = i * BLOCK_SIZE + 1;
+            g.drawLine(250, y, 250 + BLOCK_SIZE * MAP_SIZE, y);
         }
     }
 
@@ -51,12 +74,24 @@ public class GamePanel extends JPanel {
             case KeyEvent.VK_RIGHT, KeyEvent.VK_D -> gameThread.moveRight();
             case KeyEvent.VK_SPACE, KeyEvent.VK_DOWN, KeyEvent.VK_S -> gameThread.moveBottom();
             case KeyEvent.VK_R -> startGame();
+            case KeyEvent.VK_T -> gameThread.gameOver();
+            case KeyEvent.VK_ESCAPE -> System.exit(0);
         }
+    }
+
+    public void setLevel(int level) {
+        this.level = level;
+        titlePanel.setLevel(level);
+    }
+
+    public void setScore(int score) {
+        titlePanel.setScore(score);
     }
 
     private class GameThread extends Thread {
 
         private Block currentBlock;
+        private int score = 0;
 
         @Override
         public void run() {
@@ -92,39 +127,39 @@ public class GamePanel extends JPanel {
                 }
                 repaint(); // 그리기
                 try {
-                    sleep(500); // 딜레이
-                } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
+                    sleep((long) (600 - ((Math.sqrt(score) + level * 150L)) % 500)); // 딜레이
+                } catch (InterruptedException ignored) {
+                    return;
                 }
             }
         }
 
         private boolean checkBlock() {
             boolean isFound = false;
-            boolean[][] marked = new boolean[N_BLOCK][N_BLOCK];
-            Color[][] map = new Color[N_BLOCK][N_BLOCK];
-            for (int i = 0; i < N_BLOCK; i++) {
-                map[i] = new Color[N_BLOCK];
-                marked[i] = new boolean[N_BLOCK];
+            boolean[][] marked = new boolean[MAP_SIZE][MAP_SIZE];
+            Color[][] map = new Color[MAP_SIZE][MAP_SIZE];
+            for (int i = 0; i < MAP_SIZE; i++) {
+                map[i] = new Color[MAP_SIZE];
+                marked[i] = new boolean[MAP_SIZE];
             }
             for (Block block : blocks) {
                 map[block.getY()][block.getX()] = block.getColor();
             }
-            for (int i = 0; i < 10; i++) {
-                for (int j = 0; j < 10; j++) {
+            for (int i = 0; i < MAP_SIZE; i++) {
+                for (int j = 0; j < MAP_SIZE; j++) {
                     // 가로 3개
-                    if (j < 8 && map[i][j] == map[i][j + 1] && map[i][j] == map[i][j + 2]) {
+                    if (j < MAP_SIZE - 2 && map[i][j] == map[i][j + 1] && map[i][j] == map[i][j + 2]) {
                         marked[i][j] = true;
                         marked[i][j + 1] = true;
                         marked[i][j + 2] = true;
                     }
                     // 세로 3개
-                    if (i < 8 && map[i][j] == map[i + 1][j] && map[i][j] == map[i + 2][j]) {
+                    if (i < MAP_SIZE - 2 && map[i][j] == map[i + 1][j] && map[i][j] == map[i + 2][j]) {
                         marked[i][j] = true;
                         marked[i + 1][j] = true;
                         marked[i + 2][j] = true;
                     }
-                    if (i > 7 || j > 7) continue;
+                    if (i > MAP_SIZE - 3 || j > MAP_SIZE - 3) continue;
                     // 대각선 3개 (우하향)
                     if (map[i][j] == map[i + 1][j + 1] && map[i][j] == map[i + 2][j + 2]) {
                         marked[i][j] = true;
@@ -142,6 +177,8 @@ public class GamePanel extends JPanel {
             for (Block block : blocks) {
                 if (marked[block.getY()][block.getX()]) {
                     block.delete();
+                    score += 50;
+                    titlePanel.setScore(score);
                     isFound = true;
                 }
             }
@@ -149,11 +186,13 @@ public class GamePanel extends JPanel {
         }
 
         private void gameOver() {
-            interrupt();
+            gameOverLabel.setVisible(true);
+            restartLabel.setVisible(true);
+            gameThread.interrupt();
         }
 
         private boolean isBottom(Block currentBlock) {
-            if (currentBlock.getY() >= 9) {
+            if (currentBlock.getY() >= MAP_SIZE - 1) {
                 return true;
             }
             for (Block block : blocks) {
@@ -165,7 +204,7 @@ public class GamePanel extends JPanel {
         }
 
         private Block getNewBlock() {
-            int x = (int) (Math.random() * 10); // 랜덤 x 좌표
+            int x = (int) (Math.random() * MAP_SIZE); // 랜덤 x 좌표
             Block block = new Block(x, 0);
             blocks.add(block); // ArrayList 에 블럭 추가
             return block;
@@ -177,7 +216,7 @@ public class GamePanel extends JPanel {
                     return;
                 }
             }
-            if (x >= 0 && x <= N_BLOCK - 1 && y >= 0 && y <= N_BLOCK - 1) {
+            if (x >= 0 && x <= MAP_SIZE - 1 && y >= 0 && y <= MAP_SIZE - 1) {
                 currentBlock.setX(x);
                 currentBlock.setY(y);
             }
