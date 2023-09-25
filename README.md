@@ -1,4 +1,4 @@
-# Mini-Tetris
+# Mini Tetris Game
 
 This is a mini Tetris game made in Java Swing.
 
